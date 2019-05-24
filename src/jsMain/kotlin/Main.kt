@@ -4,29 +4,35 @@ import kotlin.collections.set
 import kotlin.js.*
 
 class Card(props: dynamic) : React.Component(props) {
+    companion object {
+        fun refreshCard(endpointUri: String): Promise<CardState> {
+            return window.fetch(
+                endpointUri,
+                getRequestOptions()
+            ).then {
+                if (!it.ok) {
+                    val responseJson = responseToJson(it)
+                    error("Fetch GET $endpointUri was not successful: $responseJson")
+                }
+
+                return@then it.json()
+            }.then {
+                val obj = it.asDynamic()
+                return@then CardState(obj.uri as String, obj.id as Int, obj.title as String)
+            }
+        }
+    }
+
     private val endpointUri = this.props.uri as String
     private val onDataFetched = this.props.onDataFetched as (card: CardState) -> Nothing
 
-    private fun refresh() {
-        window.fetch(
-            endpointUri,
-            getRequestOptions()
-        ).then {
-            if (!it.ok) {
-                val responseJson = responseToJson(it)
-                error("Fetch GET $endpointUri was not successful: $responseJson")
-            }
-
-            return@then it.json()
-        }.then {
-            val obj = it.asDynamic()
-            this.onDataFetched(CardState(obj.uri as String, obj.id as Int, obj.title as String))
-        }.catch { console.error(it) }
-    }
-
     override fun componentDidMount() {
         if (!this.props.isInitialized as Boolean) {
-            this.refresh()
+            refreshCard(endpointUri)
+                .then(onDataFetched)
+                .catch {
+                    console.error(it)
+                }
         }
     }
 
@@ -202,6 +208,9 @@ class CardApp(props: dynamic) : React.Component(props) {
                     val isInitialized = true
                     val cards: HashMap<Int, CardState?> = HashMap(cardIdArray.associate {
                         return@associate if (previousCards.containsKey(it)) {
+                            Card.refreshCard("$endpointUri$it").then { card: CardState ->
+                                this@CardApp.onCardDataFetched(card)
+                            }.catch { console.error(it) }
                             it to previousCards[it]
                         } else it to null
                     })
