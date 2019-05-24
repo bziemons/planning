@@ -42,16 +42,29 @@ fun main(args: Array<String>) {
                                     "sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
                                 attributes["crossorigin"] = "anonymous"
                             }
+                            styleLink("/style.css")
                             title("planning")
                         }
                         body {
                             div("container-fluid") {
+                                style = "padding-top: 15px"
                                 h1 {
-                                    +"Hello Worlds!"
+                                    +"Planning"
                                 }
                                 div {
                                     id = "card-container"
-                                    +"Still connecting or cannot connect to API endpoint.. check your JavaScript blocker"
+                                    div(classes = "d-flex align-items-center") {
+                                        strong {
+                                            +"Loading..."
+                                        }
+                                        span(classes = "m-1 small text-muted") {
+                                            +"check your JavaScript blocker, if you have one"
+                                        }
+                                        div(classes = "spinner-border ml-auto") {
+                                            attributes["role"] = "status"
+                                            attributes["aria-hidden"] = "true"
+                                        }
+                                    }
                                 }
                             }
                             script {
@@ -91,18 +104,20 @@ fun main(args: Array<String>) {
                 }
             }
             accept(ContentType.Application.Json) {
-                get("/cards") {
+                get("/cards/") {
                     call.respondText("[1,2,3]", contentType = ContentType.Application.Json)
                 }
-                get("/card/{id}") {
+                get("/cards/{id}") {
                     val cardId = call.parameters["id"]!!.toInt()
                     val gson = Gson()
-                    val card = CardState("Card $cardId")
+                    val card = CardState("/cards/$cardId", cardId, "Card $cardId")
                     call.respondText(gson.toJson(card), contentType = ContentType.Application.Json)
                 }
-                post("/card") {
+                post("/cards/") {
+                    val newCardId = 4
+                    call.response.headers.append("Location", "/cards/$newCardId")
                     call.respondText(
-                        "{\"id\":4}",
+                        "{\"id\":$newCardId}",
                         contentType = ContentType.Application.Json,
                         status = HttpStatusCode.Created
                     )

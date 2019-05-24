@@ -1,1 +1,1 @@
-class CardState(val title: String)
+class CardState(val uri: String, val id: Int, val title: String)

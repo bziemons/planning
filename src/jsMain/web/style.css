@@ -1,0 +1,6 @@
+.card-columns.single-column {
+    column-count: 1;
+    min-width: 14em;
+    width: 22em;
+    max-width: 100%;
+}

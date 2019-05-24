@@ -6,7 +6,7 @@ external class React {
     companion object {
         fun createElement(
             node: dynamic,
-            attributes: dynamic = definedExternally,
+            props: dynamic = definedExternally,
             content: dynamic = definedExternally
         ): dynamic
     }
@@ -20,6 +20,8 @@ external class React {
         var props: dynamic
 
         fun setState(state: dynamic)
+
+        fun forceUpdate(callback: dynamic)
 
         abstract fun render(): dynamic
 
