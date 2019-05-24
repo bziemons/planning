@@ -46,6 +46,8 @@ kotlin {
                 implementation "io.ktor:ktor-html-builder:$ktor_version"
                 implementation "ch.qos.logback:logback-classic:$logback_version"
                 implementation "com.google.code.gson:gson:2.8.5"
+                implementation "org.jetbrains.exposed:exposed:0.13.7"
+                implementation "org.xerial:sqlite-jdbc:3.27.2.1"
             }
         }
         jvmTest {

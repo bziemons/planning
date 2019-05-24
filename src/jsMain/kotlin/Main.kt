@@ -18,7 +18,7 @@ class Card(props: dynamic) : React.Component(props) {
                 return@then it.json()
             }.then {
                 val obj = it.asDynamic()
-                return@then CardState(obj.uri as String, obj.id as Int, obj.title as String)
+                return@then CardState(obj.uri as String, obj.id as Int, obj.title as String, obj.body as String)
             }
         }
     }
@@ -56,7 +56,7 @@ class Card(props: dynamic) : React.Component(props) {
                                 val key = "$uri#title"
                                 val className = "card-title"
                             },
-                            title
+                            if (title === "") "\u00a0" else title
                         ),
                         React.createElement(
                             "span",
@@ -84,7 +84,7 @@ class Card(props: dynamic) : React.Component(props) {
         val uri = this.props.uri as String
         return if (this.props.isInitialized as Boolean) {
             val cardState = this.props.card as CardState
-            renderElements(uri, cardState.title, "#${cardState.id}", "")
+            renderElements(uri, cardState.title, "#${cardState.id}", cardState.body)
         } else {
             renderElements(
                 uri,
@@ -198,17 +198,18 @@ class CardApp(props: dynamic) : React.Component(props) {
                 error("Fetch GET $endpointUri was not successful: $responseJson")
             }
 
-            return@then it.json() as Promise<*>
-        }.then { cardIds ->
-            cardIds as Array<*>
-            val cardIdArray = Array(cardIds.size) { index -> cardIds[index] as Int }
+            return@then it.json()
+        }.then { cardUris ->
+            cardUris as Array<*>
+            val cardUriArray = Array(cardUris.size) { index -> cardUris[index] as String }
             this.setState { prevState: dynamic ->
                 val previousCards = prevState.cards as HashMap<Int, CardState?>
                 return@setState object {
                     val isInitialized = true
-                    val cards: HashMap<Int, CardState?> = HashMap(cardIdArray.associate { cardId ->
+                    val cards: HashMap<Int, CardState?> = HashMap(cardUriArray.associate { cardUri ->
+                        val cardId: Int = cardUri.substringAfterLast('/').toInt()
                         return@associate if (previousCards.containsKey(cardId)) {
-                            Card.refreshCard("$endpointUri$cardId")
+                            Card.refreshCard(cardUri)
                                 .then(this@CardApp::onCardDataFetched)
                                 .catch { console.error(it) }
                             cardId to previousCards[cardId]

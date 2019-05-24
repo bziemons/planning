@@ -1,5 +1,6 @@
 package de.athox.planning
 
+import CardState
 import com.google.gson.Gson
 import io.ktor.application.call
 import io.ktor.html.respondHtml
@@ -7,6 +8,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.files
 import io.ktor.http.content.static
+import io.ktor.response.respond
 import io.ktor.response.respondText
 import io.ktor.routing.accept
 import io.ktor.routing.get
@@ -15,9 +17,28 @@ import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import kotlinx.html.*
-import CardState
+import org.jetbrains.exposed.dao.IntIdTable
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.transactions.TransactionManager
+import org.jetbrains.exposed.sql.transactions.transaction
+import java.sql.Connection.TRANSACTION_SERIALIZABLE
+import java.util.*
+
+object Cards : IntIdTable() {
+    val title = text("title").nullable()
+    val body = text("body").nullable()
+}
 
 fun main(args: Array<String>) {
+    Database.connect("jdbc:sqlite:planning.db", driver = "org.sqlite.JDBC")
+    TransactionManager.manager.defaultIsolationLevel = TRANSACTION_SERIALIZABLE
+
+    transaction {
+        SchemaUtils.create(Cards)
+    }
+
+    val gson = Gson()
+
     val server = embeddedServer(Netty, 9080) {
         routing {
             static {
@@ -47,7 +68,7 @@ fun main(args: Array<String>) {
                         }
                         body {
                             div("container-fluid") {
-                                style = "padding-top: 15px"
+                                style = "padding-top: 15px; padding-bottom: 15px;"
                                 h1 {
                                     +"Planning"
                                 }
@@ -105,19 +126,48 @@ fun main(args: Array<String>) {
             }
             accept(ContentType.Application.Json) {
                 get("/cards/") {
-                    call.respondText("[1,2,3]", contentType = ContentType.Application.Json)
+                    val cardIds = LinkedList<Int>()
+                    transaction {
+                        Cards.selectAll().forEach { cardIds.push(it[Cards.id].value) }
+                    }
+                    call.respondText(
+                        gson.toJson(cardIds.map { "/cards/$it" }),
+                        contentType = ContentType.Application.Json
+                    )
                 }
                 get("/cards/{id}") {
                     val cardId = call.parameters["id"]!!.toInt()
-                    val gson = Gson()
-                    val card = CardState("/cards/$cardId", cardId, "Card $cardId")
-                    call.respondText(gson.toJson(card), contentType = ContentType.Application.Json)
+                    val result = transaction {
+                        Cards.select { Cards.id.eq(cardId) }.firstOrNull()
+                    }
+                    if (result == null) {
+                        call.respond(HttpStatusCode.NotFound)
+                        return@get
+                    }
+                    val card = CardState(
+                        "/cards/$cardId",
+                        result[Cards.id].value,
+                        result[Cards.title].orEmpty(),
+                        result[Cards.body].orEmpty()
+                    )
+                    call.respondText(
+                        gson.toJson(card),
+                        contentType = ContentType.Application.Json
+                    )
                 }
                 post("/cards/") {
-                    val newCardId = 4
-                    call.response.headers.append("Location", "/cards/$newCardId")
+                    val result = transaction {
+                        Cards.insertAndGetId {
+                            it[title] = ""
+                            it[body] = ""
+                        }
+                    }
+                    val responseObj = object {
+                        val id: Int = result.value
+                    }
+                    call.response.headers.append("Location", "/cards/${responseObj.id}")
                     call.respondText(
-                        "{\"id\":$newCardId}",
+                        gson.toJson(responseObj),
                         contentType = ContentType.Application.Json,
                         status = HttpStatusCode.Created
                     )
