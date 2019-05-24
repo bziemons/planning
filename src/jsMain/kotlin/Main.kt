@@ -206,13 +206,13 @@ class CardApp(props: dynamic) : React.Component(props) {
                 val previousCards = prevState.cards as HashMap<Int, CardState?>
                 return@setState object {
                     val isInitialized = true
-                    val cards: HashMap<Int, CardState?> = HashMap(cardIdArray.associate {
-                        return@associate if (previousCards.containsKey(it)) {
-                            Card.refreshCard("$endpointUri$it").then { card: CardState ->
-                                this@CardApp.onCardDataFetched(card)
-                            }.catch { console.error(it) }
-                            it to previousCards[it]
-                        } else it to null
+                    val cards: HashMap<Int, CardState?> = HashMap(cardIdArray.associate { cardId ->
+                        return@associate if (previousCards.containsKey(cardId)) {
+                            Card.refreshCard("$endpointUri$cardId")
+                                .then(this@CardApp::onCardDataFetched)
+                                .catch { console.error(it) }
+                            cardId to previousCards[cardId]
+                        } else cardId to null
                     })
                 }
             }
