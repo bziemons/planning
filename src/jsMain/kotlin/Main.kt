@@ -1,7 +1,6 @@
 import kotlin.browser.document
 import kotlin.browser.window
 import kotlin.collections.set
-import kotlin.js.*
 
 class Card(props: dynamic) : React.Component(props) {
     private val cardId = this.props.cardId as Int
@@ -13,39 +12,37 @@ class Card(props: dynamic) : React.Component(props) {
 
     private fun renderElements(uid: String, title: dynamic, id: dynamic, body: dynamic): dynamic {
         val cardAnchor = encodeURIComponent(uid)
-        return React.createElement(
+
+        var cardContent: dynamic = React.createElement(
             "div",
             object {
-                val className = "card"
-                val id = cardAnchor
+                val key = "$uid#header"
+                val className = "card-header"
             },
             arrayOf(
                 React.createElement(
-                    "div",
+                    "span",
                     object {
-                        val key = "$uid#header"
-                        val className = "card-header"
+                        val key = "$uid#title"
+                        val className = "card-title"
                     },
-                    arrayOf(
-                        React.createElement(
-                            "span",
-                            object {
-                                val key = "$uid#title"
-                                val className = "card-title"
-                            },
-                            if (title === "") "\u00a0" else title
-                        ),
-                        React.createElement(
-                            "a",
-                            object {
-                                val key = "$uid#id"
-                                val href = "#$cardAnchor"
-                                val className = "card-title float-right text-muted"
-                            },
-                            id
-                        )
-                    )
+                    if (title === "") "\u00a0" else title
                 ),
+                React.createElement(
+                    "a",
+                    object {
+                        val key = "$uid#id"
+                        val href = "#$cardAnchor"
+                        val className = "card-title float-right text-muted"
+                    },
+                    id
+                )
+            )
+        )
+
+        if (body != null && (body as? String)?.isEmpty() != true) {
+            cardContent = arrayOf(
+                cardContent,
                 React.createElement(
                     "div",
                     object {
@@ -55,6 +52,15 @@ class Card(props: dynamic) : React.Component(props) {
                     body
                 )
             )
+        }
+
+        return React.createElement(
+            "div",
+            object {
+                val className = "card"
+                val id = cardAnchor
+            },
+            cardContent
         )
     }
 
@@ -65,37 +71,23 @@ class Card(props: dynamic) : React.Component(props) {
             renderElements(uid, cardState.title, "#${cardState.id}", cardState.body)
         } else {
             renderElements(
-                uid,
-                title = React.createElement("em", object {}, "Loading..."),
-                id = "#???",
-                body = React.createElement(
+                uid = uid,
+                title = React.createElement(
                     "div",
                     object {
-                        val className = "text-center"
-                        val style = object {
-                            val display = "flex"
-                            val justifyContent = "center"
-                            val minHeight = "12em"
-                        }
+                        val className = "spinner-border spinner-border-sm"
+                        val role = "status"
                     },
                     React.createElement(
-                        "div",
+                        "em",
                         object {
-                            val className = "spinner-border"
-                            val role = "status"
-                            val style = object {
-                                val alignSelf = "center"
-                            }
+                            val className = "sr-only"
                         },
-                        React.createElement(
-                            "span",
-                            object {
-                                val className = "sr-only"
-                            },
-                            "Loading..."
-                        )
+                        "Loading..."
                     )
-                )
+                ),
+                id = "#???",
+                body = null
             )
         }
     }

@@ -3,6 +3,9 @@ package de.athox.planning
 import CardState
 import com.google.gson.Gson
 import io.ktor.application.call
+import io.ktor.application.install
+import io.ktor.features.CallLogging
+import io.ktor.features.DefaultHeaders
 import io.ktor.html.respondHtml
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -25,8 +28,8 @@ import java.sql.Connection.TRANSACTION_SERIALIZABLE
 import java.util.*
 
 object Cards : IntIdTable() {
-    val title = text("title").nullable()
-    val body = text("body").nullable()
+    val title = text("title")
+    val body = text("body")
 }
 
 fun main(args: Array<String>) {
@@ -40,6 +43,8 @@ fun main(args: Array<String>) {
     val gson = Gson()
 
     val server = embeddedServer(Netty, 9080) {
+        install(DefaultHeaders)
+        install(CallLogging)
         routing {
             static {
                 files("src/jsMain/web")
@@ -147,8 +152,8 @@ fun main(args: Array<String>) {
                     val card = CardState(
                         "/cards/$cardId",
                         result[Cards.id].value,
-                        result[Cards.title].orEmpty(),
-                        result[Cards.body].orEmpty()
+                        result[Cards.title],
+                        result[Cards.body]
                     )
                     call.respondText(
                         gson.toJson(card),
