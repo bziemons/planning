@@ -5,12 +5,10 @@ import kotlin.js.*
 
 class Card(props: dynamic) : React.Component(props) {
     private val cardId = this.props.cardId as Int
-    private val fetchCard = this.props.fetchCard as (cardId: Int) -> Nothing
+    private val onMount = this.props.onMount as (cardId: Int) -> Unit
 
     override fun componentDidMount() {
-        if (!this.props.isInitialized as Boolean) {
-            fetchCard(cardId)
-        }
+        this.onMount(cardId)
     }
 
     private fun renderElements(uid: String, title: dynamic, id: dynamic, body: dynamic): dynamic {
@@ -146,6 +144,8 @@ class RefreshButton(props: dynamic) : React.Component(props) {
 
 class CardApp(props: dynamic) : React.Component(props) {
     private val endpointUri = "/cards/"
+    private val cardsBeingFetched = HashSet<Int>()
+    private val cardsOffView = ViewElements(this::onCardVisible)
 
     init {
         this.state = object {
@@ -184,21 +184,23 @@ class CardApp(props: dynamic) : React.Component(props) {
             val cardUriArray = Array(cardUris.size) { index -> cardUris[index] as String }
             this.setState { prevState: dynamic ->
                 val previousCards = prevState.cards as HashMap<Int, CardState?>
+                val nextCards = HashMap(cardUriArray.associate { cardUri ->
+                    val cardId: Int = cardUri.substringAfterLast('/').toInt()
+                    return@associate if (previousCards.containsKey(cardId)) {
+                        this@CardApp.fetchCard(cardId)
+                        cardId to previousCards[cardId]
+                    } else cardId to null
+                })
                 return@setState object {
                     val isInitialized = true
-                    val cards: HashMap<Int, CardState?> = HashMap(cardUriArray.associate { cardUri ->
-                        val cardId: Int = cardUri.substringAfterLast('/').toInt()
-                        return@associate if (previousCards.containsKey(cardId)) {
-                            this@CardApp.fetchCard(cardId)
-                            cardId to previousCards[cardId]
-                        } else cardId to null
-                    })
+                    val cards = nextCards
                 }
             }
         }.catch { console.error(it) }
     }
 
     private fun fetchCard(cardId: Int) {
+        this.cardsBeingFetched.add(cardId)
         window.fetch(
             "$endpointUri$cardId",
             getRequestOptions()
@@ -212,7 +214,10 @@ class CardApp(props: dynamic) : React.Component(props) {
         }.then {
             val obj = it.asDynamic()
             return@then CardState(obj.uri as String, obj.id as Int, obj.title as String, obj.body as String)
-        }.then(this::onCardDataFetched).catch { console.error(it) }
+        }.then(this::onCardDataFetched).catch {
+            this.cardsBeingFetched.remove(cardId)
+            console.error(it)
+        }
     }
 
     private fun onCardDataFetched(card: CardState) {
@@ -229,8 +234,44 @@ class CardApp(props: dynamic) : React.Component(props) {
         }
     }
 
+    fun getCardUid(cardId: Int): String {
+        return "$endpointUri$cardId"
+    }
+
+    private fun onCardVisible(cardId: Int) {
+        this.fetchCard(cardId)
+        this.cardsOffView.remove(cardId)
+    }
+
     override fun componentDidMount() {
         this.refresh()
+        this.cardsOffView.embark()
+    }
+
+    private fun onCardMount(cardId: Int) {
+        if (this.cardsBeingFetched.contains(cardId)) {
+            this.cardsBeingFetched.remove(cardId)
+        }
+
+        val cards = this.state.cards as HashMap<Int, CardState?>
+        cards.entries.filter {
+            it.value == null && !this.cardsBeingFetched.contains(it.key)
+        }.forEach {
+            val uid = this.getCardUid(it.key)
+            val element = document.getElementById(encodeURIComponent(uid))
+            if (element == null) {
+                if (it.key == cardId) {
+                    console.warn("Could not find element for card id $cardId!")
+                }
+                return
+            }
+            this.cardsOffView.put(it.key, element)
+        }
+        this.cardsOffView.forceUpdate()
+    }
+
+    override fun componentWillUnmount() {
+        this.cardsOffView.disembark()
     }
 
     override fun render(): dynamic {
@@ -247,9 +288,9 @@ class CardApp(props: dynamic) : React.Component(props) {
                         val cardProps: dynamic = object {
                             val key = it.key.toString()
                             val cardId = it.key
-                            val uid = "$endpointUri${it.key}" // TODO: card-container uid
+                            val uid = this@CardApp.getCardUid(it.key) // TODO: card-container uid
                             val uri = "$endpointUri${it.key}"
-                            val fetchCard = { cardId: Int -> this@CardApp.fetchCard(cardId) }
+                            val onMount = this@CardApp::onCardMount
                         }
                         cardProps["isInitialized"] = if (it.value == null) {
                             false

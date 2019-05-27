@@ -35,3 +35,5 @@ fun responseToJson(response: Response): String {
         "Could not encode response"
     }
 }
+
+class Rectangle(val xStart: Int, val yStart: Int, val xEnd: Int, val yEnd: Int)
