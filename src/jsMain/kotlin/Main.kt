@@ -161,7 +161,7 @@ class CardApp(props: dynamic) : React.Component(props) {
         ).then {
             if (it.status != 201.toShort()) {
                 val responseJson = responseToJson(it)
-                error("Fetch POST $endpointUri was not successful: $responseJson")
+                error("fetch POST $endpointUri was not successful: $responseJson")
             }
 
             this.refresh()
@@ -175,7 +175,7 @@ class CardApp(props: dynamic) : React.Component(props) {
         ).then {
             if (!it.ok) {
                 val responseJson = responseToJson(it)
-                error("Fetch GET $endpointUri was not successful: $responseJson")
+                error("fetch GET $endpointUri was not successful: $responseJson")
             }
 
             return@then it.json()
@@ -186,10 +186,12 @@ class CardApp(props: dynamic) : React.Component(props) {
                 val previousCards = prevState.cards as HashMap<Int, CardState?>
                 val nextCards = HashMap(cardUriArray.associate { cardUri ->
                     val cardId: Int = cardUri.substringAfterLast('/').toInt()
-                    return@associate if (previousCards.containsKey(cardId)) {
+                    if (!previousCards.containsKey(cardId) || previousCards[cardId] == null) {
+                        return@associate cardId to null
+                    } else {
                         this@CardApp.fetchCard(cardId)
-                        cardId to previousCards[cardId]
-                    } else cardId to null
+                        return@associate cardId to previousCards[cardId]
+                    }
                 })
                 return@setState object {
                     val isInitialized = true
@@ -207,7 +209,7 @@ class CardApp(props: dynamic) : React.Component(props) {
         ).then {
             if (!it.ok) {
                 val responseJson = responseToJson(it)
-                error("Fetch GET $endpointUri was not successful: $responseJson")
+                error("fetch GET $endpointUri was not successful: $responseJson")
             }
 
             return@then it.json()
@@ -224,7 +226,7 @@ class CardApp(props: dynamic) : React.Component(props) {
         this.setState { prevState: dynamic ->
             val previousCards = prevState.cards as HashMap<Int, CardState?>
             if (!previousCards.contains(card.id)) {
-                console.log("onCardDataFetched with unknown card id ${card.id} was fetched")
+                console.warn("card data with unknown card id ${card.id} was fetched!")
                 return@setState object {}
             }
             previousCards[card.id] = card
@@ -249,23 +251,18 @@ class CardApp(props: dynamic) : React.Component(props) {
     }
 
     private fun onCardMount(cardId: Int) {
+        val cards = this.state.cards as HashMap<Int, CardState?>
         if (this.cardsBeingFetched.contains(cardId)) {
             this.cardsBeingFetched.remove(cardId)
-        }
-
-        val cards = this.state.cards as HashMap<Int, CardState?>
-        cards.entries.filter {
-            it.value == null && !this.cardsBeingFetched.contains(it.key)
-        }.forEach {
-            val uid = this.getCardUid(it.key)
+        } else if (cards[cardId] == null) {
+            val uid = this.getCardUid(cardId)
             val element = document.getElementById(encodeURIComponent(uid))
             if (element == null) {
-                if (it.key == cardId) {
-                    console.warn("Could not find element for card id $cardId!")
-                }
+                console.warn("could not find element for card id $cardId!")
                 return
             }
-            this.cardsOffView.put(it.key, element)
+
+            this.cardsOffView.put(cardId, element)
         }
         this.cardsOffView.forceUpdate()
     }

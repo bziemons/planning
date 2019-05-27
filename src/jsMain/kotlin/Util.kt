@@ -36,4 +36,8 @@ fun responseToJson(response: Response): String {
     }
 }
 
-class Rectangle(val xStart: Int, val yStart: Int, val xEnd: Int, val yEnd: Int)
+class Rectangle(val xStart: Int, val yStart: Int, val xEnd: Int, val yEnd: Int) {
+    override fun toString(): String {
+        return "Rectangle($xStart, $yStart, $xEnd, $yEnd)"
+    }
+}
