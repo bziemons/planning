@@ -1,6 +1,8 @@
 import org.w3c.fetch.*
 import kotlin.js.json
 
+external fun encodeURIComponent(str: String): String
+
 private fun defaultApiFetchOptions(): RequestInit {
     return RequestInit(
         mode = RequestMode.SAME_ORIGIN,

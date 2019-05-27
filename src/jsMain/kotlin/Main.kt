@@ -4,64 +4,44 @@ import kotlin.collections.set
 import kotlin.js.*
 
 class Card(props: dynamic) : React.Component(props) {
-    companion object {
-        fun refreshCard(endpointUri: String): Promise<CardState> {
-            return window.fetch(
-                endpointUri,
-                getRequestOptions()
-            ).then {
-                if (!it.ok) {
-                    val responseJson = responseToJson(it)
-                    error("Fetch GET $endpointUri was not successful: $responseJson")
-                }
-
-                return@then it.json()
-            }.then {
-                val obj = it.asDynamic()
-                return@then CardState(obj.uri as String, obj.id as Int, obj.title as String, obj.body as String)
-            }
-        }
-    }
-
-    private val endpointUri = this.props.uri as String
-    private val onDataFetched = this.props.onDataFetched as (card: CardState) -> Nothing
+    private val cardId = this.props.cardId as Int
+    private val fetchCard = this.props.fetchCard as (cardId: Int) -> Nothing
 
     override fun componentDidMount() {
         if (!this.props.isInitialized as Boolean) {
-            refreshCard(endpointUri)
-                .then(onDataFetched)
-                .catch {
-                    console.error(it)
-                }
+            fetchCard(cardId)
         }
     }
 
-    private fun renderElements(uri: String, title: dynamic, id: dynamic, body: dynamic): dynamic {
+    private fun renderElements(uid: String, title: dynamic, id: dynamic, body: dynamic): dynamic {
+        val cardAnchor = encodeURIComponent(uid)
         return React.createElement(
             "div",
             object {
                 val className = "card"
+                val id = cardAnchor
             },
             arrayOf(
                 React.createElement(
                     "div",
                     object {
-                        val key = "$uri#header"
+                        val key = "$uid#header"
                         val className = "card-header"
                     },
                     arrayOf(
                         React.createElement(
                             "span",
                             object {
-                                val key = "$uri#title"
+                                val key = "$uid#title"
                                 val className = "card-title"
                             },
                             if (title === "") "\u00a0" else title
                         ),
                         React.createElement(
-                            "span",
+                            "a",
                             object {
-                                val key = "$uri#id"
+                                val key = "$uid#id"
+                                val href = "#$cardAnchor"
                                 val className = "card-title float-right text-muted"
                             },
                             id
@@ -71,7 +51,7 @@ class Card(props: dynamic) : React.Component(props) {
                 React.createElement(
                     "div",
                     object {
-                        val key = "$uri#body"
+                        val key = "$uid#body"
                         val className = "card-body"
                     },
                     body
@@ -81,13 +61,13 @@ class Card(props: dynamic) : React.Component(props) {
     }
 
     override fun render(): dynamic {
-        val uri = this.props.uri as String
+        val uid = this.props.uid as String
         return if (this.props.isInitialized as Boolean) {
             val cardState = this.props.card as CardState
-            renderElements(uri, cardState.title, "#${cardState.id}", cardState.body)
+            renderElements(uid, cardState.title, "#${cardState.id}", cardState.body)
         } else {
             renderElements(
-                uri,
+                uid,
                 title = React.createElement("em", object {}, "Loading..."),
                 id = "#???",
                 body = React.createElement(
@@ -209,15 +189,30 @@ class CardApp(props: dynamic) : React.Component(props) {
                     val cards: HashMap<Int, CardState?> = HashMap(cardUriArray.associate { cardUri ->
                         val cardId: Int = cardUri.substringAfterLast('/').toInt()
                         return@associate if (previousCards.containsKey(cardId)) {
-                            Card.refreshCard(cardUri)
-                                .then(this@CardApp::onCardDataFetched)
-                                .catch { console.error(it) }
+                            this@CardApp.fetchCard(cardId)
                             cardId to previousCards[cardId]
                         } else cardId to null
                     })
                 }
             }
         }.catch { console.error(it) }
+    }
+
+    private fun fetchCard(cardId: Int) {
+        window.fetch(
+            "$endpointUri$cardId",
+            getRequestOptions()
+        ).then {
+            if (!it.ok) {
+                val responseJson = responseToJson(it)
+                error("Fetch GET $endpointUri was not successful: $responseJson")
+            }
+
+            return@then it.json()
+        }.then {
+            val obj = it.asDynamic()
+            return@then CardState(obj.uri as String, obj.id as Int, obj.title as String, obj.body as String)
+        }.then(this::onCardDataFetched).catch { console.error(it) }
     }
 
     private fun onCardDataFetched(card: CardState) {
@@ -251,8 +246,10 @@ class CardApp(props: dynamic) : React.Component(props) {
                     cards.entries.map {
                         val cardProps: dynamic = object {
                             val key = it.key.toString()
+                            val cardId = it.key
+                            val uid = "$endpointUri${it.key}" // TODO: card-container uid
                             val uri = "$endpointUri${it.key}"
-                            val onDataFetched = { card: CardState -> this@CardApp.onCardDataFetched(card) }
+                            val fetchCard = { cardId: Int -> this@CardApp.fetchCard(cardId) }
                         }
                         cardProps["isInitialized"] = if (it.value == null) {
                             false
@@ -260,7 +257,7 @@ class CardApp(props: dynamic) : React.Component(props) {
                             cardProps["card"] = it.value
                             true
                         }
-                        return@map React.createElement(Card::class.js, cardProps)
+                        return@map React.createElement(Card::class.js, cardProps) as Any
                     }.toTypedArray()
                 ),
                 React.createElement(
