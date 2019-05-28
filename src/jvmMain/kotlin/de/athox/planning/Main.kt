@@ -11,12 +11,10 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.files
 import io.ktor.http.content.static
+import io.ktor.request.receiveStream
 import io.ktor.response.respond
 import io.ktor.response.respondText
-import io.ktor.routing.accept
-import io.ktor.routing.get
-import io.ktor.routing.post
-import io.ktor.routing.routing
+import io.ktor.routing.*
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import kotlinx.html.*
@@ -159,6 +157,30 @@ fun main(args: Array<String>) {
                         gson.toJson(card),
                         contentType = ContentType.Application.Json
                     )
+                }
+                patch("/cards/{id}") {
+                    val cardId = call.parameters["id"]!!.toInt()
+                    val obj = gson.fromJson<CardState>(call.receiveStream().reader(), CardState::class.java)
+                    if (obj.title == null && obj.body == null) {
+                        call.respond(HttpStatusCode.BadRequest, "no update item received")
+                        return@patch
+                    }
+
+                    try {
+                        transaction {
+                            Cards.update({ Cards.id.eq(cardId) }) {
+                                if (obj.title != null) {
+                                    it[title] = obj.title
+                                }
+                                if (obj.body != null) {
+                                    it[body] = obj.body
+                                }
+                            }
+                        }
+                        call.respond(HttpStatusCode.Accepted)
+                    } catch (err: RuntimeException) {
+                        call.respond(HttpStatusCode.BadRequest)
+                    }
                 }
                 post("/cards/") {
                     val result = transaction {

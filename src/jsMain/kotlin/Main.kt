@@ -1,41 +1,126 @@
+import org.w3c.dom.HTMLElement
+import org.w3c.dom.events.KeyboardEvent
 import kotlin.browser.document
 import kotlin.browser.window
 import kotlin.collections.set
 
+enum class CardInput {
+    Title,
+    Body
+}
+
 class Card(props: dynamic) : React.Component(props) {
     private val cardId = this.props.cardId as Int
     private val onMount = this.props.onMount as (cardId: Int) -> Unit
+    private val onCardChanged =
+        this.props.onCardChanged as (cardId: Int, cardState: CardState) -> Unit
+
+    private var changeCooldown = false
+    private var changeDirty = false
 
     override fun componentDidMount() {
         this.onMount(cardId)
     }
 
+    private fun onChange(cardState: CardState) {
+        this.changeDirty = false
+        this.onCardChanged(this.cardId, cardState)
+    }
+
+    private fun onTitleChange(event: KeyboardEvent) {
+        val htmlElement = event.target as HTMLElement
+        if (event.key == "Enter" && !event.shiftKey) {
+            event.preventDefault()
+            htmlElement.blur()
+        }
+
+        if (this.changeCooldown) {
+            this.changeDirty = true
+            return
+        }
+        this.changeCooldown = true
+        this.changeDirty = false
+
+        this.onCardChanged(this.cardId, CardState(title = htmlElement.innerHTML))
+
+        window.setTimeout({
+            this.changeCooldown = false
+            if (this.changeDirty) {
+                this.onChange(CardState(title = htmlElement.innerHTML))
+            }
+        }, 1000)
+    }
+
     private fun renderElements(uid: String, title: dynamic, id: dynamic, body: dynamic): dynamic {
         val cardAnchor = encodeURIComponent(uid)
+
+        val titleAttributes: dynamic = object {
+            val key = "$uid#title"
+            val className = "card-title"
+            val style = object {
+                val flexGrow = "1"
+                val minHeight = "1.5rem"
+                val marginBottom = "0"
+                val overflow = "hidden"
+                val textOverflow = "ellipsis"
+            }
+        }
+
+        var titleContent = title
+        val titleString = title as? String
+        if (titleString != null) {
+            titleAttributes["contentEditable"] = "true"
+            titleAttributes["suppressContentEditableWarning"] = true
+            titleAttributes["onKeyPress"] = this::onTitleChange
+
+            if (titleString.isNotEmpty()) {
+                titleContent = null
+                titleAttributes["dangerouslySetInnerHTML"] = object {
+                    @Suppress("ObjectPropertyName")
+                    val __html = titleString.replace("&", "&amp;")
+                        .replace("\"", "&quot;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                        .replace("\n", "<br>")
+                }
+            }
+        }
 
         var cardContent: dynamic = React.createElement(
             "div",
             object {
                 val key = "$uid#header"
                 val className = "card-header"
+                val style = object {
+                    val display = "flex"
+                    val flexDirection = "row"
+                }
             },
             arrayOf(
                 React.createElement(
-                    "span",
-                    object {
-                        val key = "$uid#title"
-                        val className = "card-title"
-                    },
-                    if (title === "") "\u00a0" else title
+                    "div",
+                    titleAttributes,
+                    titleContent
                 ),
                 React.createElement(
-                    "a",
+                    "div",
                     object {
                         val key = "$uid#id"
-                        val href = "#$cardAnchor"
-                        val className = "card-title float-right text-muted"
+                        val style = object {
+                            val paddingLeft = ".5rem"
+                        }
                     },
-                    id
+                    React.createElement(
+                        "a",
+                        object {
+                            val href = "#$cardAnchor"
+                            val className = "text-muted"
+                            val style = object {
+                                val paddingLeft = ".25rem"
+                            }
+                        },
+                        id
+                    )
                 )
             )
         )
@@ -221,7 +306,7 @@ class CardApp(props: dynamic) : React.Component(props) {
                 console.warn("card data with unknown card id ${card.id} was fetched!")
                 return@setState object {}
             }
-            previousCards[card.id] = card
+            previousCards[card.id!!] = card
             return@setState object {
                 val cards = previousCards
             }
@@ -259,6 +344,24 @@ class CardApp(props: dynamic) : React.Component(props) {
         this.cardsOffView.forceUpdate()
     }
 
+    private fun onCardDataChanged(cardId: Int, cardState: CardState) {
+        val patchObject: Any = CardState(
+            uri = "$endpointUri$cardId",
+            id = cardId,
+            title = convertTags(cardState.title),
+            body = convertTags(cardState.body)
+        )
+        window.fetch(
+            "$endpointUri$cardId",
+            patchRequestOptions(patchObject)
+        ).then {
+            if (it.status != 202.toShort()) {
+                val responseJson = responseToJson(it)
+                error("fetch PATCH $endpointUri$cardId was not successful: $responseJson")
+            }
+        }.catch { console.error(it) }
+    }
+
     override fun componentWillUnmount() {
         this.cardsOffView.disembark()
     }
@@ -280,6 +383,7 @@ class CardApp(props: dynamic) : React.Component(props) {
                             val uid = this@CardApp.getCardUid(it.key) // TODO: card-container uid
                             val uri = "$endpointUri${it.key}"
                             val onMount = this@CardApp::onCardMount
+                            val onCardChanged = this@CardApp::onCardDataChanged
                         }
                         cardProps["isInitialized"] = if (it.value == null) {
                             false

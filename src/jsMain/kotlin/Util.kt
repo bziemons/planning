@@ -27,6 +27,15 @@ fun postRequestOptions(data: Any?): RequestInit {
     return fetchOptions
 }
 
+fun patchRequestOptions(data: Any?): RequestInit {
+    val fetchOptions = defaultApiFetchOptions()
+    fetchOptions.method = "PATCH"
+    if (data != null) {
+        fetchOptions.body = JSON.stringify(data)
+    }
+    return fetchOptions
+}
+
 fun responseToJson(response: Response): String {
     return try {
         JSON.stringify(response)
@@ -34,6 +43,10 @@ fun responseToJson(response: Response): String {
         console.error(response)
         "Could not encode response"
     }
+}
+
+fun convertTags(str: String?): String? {
+    return str?.replace("<br>", "\n")
 }
 
 class Rectangle(val xStart: Int, val yStart: Int, val xEnd: Int, val yEnd: Int) {
