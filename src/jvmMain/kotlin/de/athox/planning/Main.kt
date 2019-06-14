@@ -31,6 +31,9 @@ fun main(args: Array<String>) {
             static {
                 files("src/jsMain/web")
             }
+            static {
+                files(".")
+            }
             accept(ContentType.Text.Html) {
                 // HTML page
                 get("/") {
