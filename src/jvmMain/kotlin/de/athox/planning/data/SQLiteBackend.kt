@@ -8,23 +8,28 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.sql.Connection
 
 class SQLiteBackend : CardReadProvider, CardWriteProvider {
+    companion object {
+        private const val DB_FILE = "planning.db"
+    }
+
     private object Cards : IntIdTable() {
         val title = text("title")
         val body = text("body")
     }
 
+    private var db: Database = Database.connect("jdbc:sqlite:$DB_FILE", driver = "org.sqlite.JDBC")
+
     init {
-        Database.connect("jdbc:sqlite:planning.db", driver = "org.sqlite.JDBC")
         TransactionManager.manager.defaultIsolationLevel =
             Connection.TRANSACTION_SERIALIZABLE
 
-        transaction {
+        transaction(db) {
             SchemaUtils.create(Cards)
         }
     }
 
     override fun insertCard(): Int {
-        return transaction {
+        return transaction(db) {
             Cards.insertAndGetId {
                 it[title] = ""
                 it[body] = ""
@@ -33,7 +38,7 @@ class SQLiteBackend : CardReadProvider, CardWriteProvider {
     }
 
     override fun updateCard(cardId: Int, obj: CardState) {
-        transaction {
+        transaction(db) {
             Cards.update({ Cards.id.eq(cardId) }) {
                 if (obj.title != null) {
                     it[title] = obj.title
@@ -47,7 +52,7 @@ class SQLiteBackend : CardReadProvider, CardWriteProvider {
 
     @Throws(CardNotFoundException::class)
     override fun getCard(cardId: Int): CardState {
-        val result = transaction {
+        val result = transaction(db) {
             Cards.select { Cards.id.eq(cardId) }.firstOrNull()
         } ?: throw CardNotFoundException("Card with id $cardId not found")
 
@@ -59,9 +64,9 @@ class SQLiteBackend : CardReadProvider, CardWriteProvider {
         )
     }
 
-    override fun allCards(): Iterable<Int> {
-        return transaction {
-            Cards.selectAll().mapLazy { it[Cards.id].value }
+    override fun allCards(): List<Int> {
+        return transaction(db) {
+            Cards.selectAll().map { it[Cards.id].value }
         }
     }
 }

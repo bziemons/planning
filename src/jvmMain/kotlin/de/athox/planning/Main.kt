@@ -120,7 +120,7 @@ fun main(args: Array<String>) {
             accept(ContentType.Application.Json) {
                 get("/cards/") {
                     call.respondText(
-                        gson.toJson(dataBackend.allCards().map { "/cards/$it" }),
+                        gson.toJson(dataBackend.allCards().map { "/cards/$it" }.toTypedArray()),
                         contentType = ContentType.Application.Json
                     )
                 }
