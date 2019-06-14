@@ -2,6 +2,7 @@ package de.athox.planning
 
 import CardState
 import com.google.gson.Gson
+import de.athox.planning.data.*
 import io.ktor.application.call
 import io.ktor.application.install
 import io.ktor.features.CallLogging
@@ -18,26 +19,9 @@ import io.ktor.routing.*
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import kotlinx.html.*
-import org.jetbrains.exposed.dao.IntIdTable
-import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.transactions.TransactionManager
-import org.jetbrains.exposed.sql.transactions.transaction
-import java.sql.Connection.TRANSACTION_SERIALIZABLE
-import java.util.*
-
-object Cards : IntIdTable() {
-    val title = text("title")
-    val body = text("body")
-}
 
 fun main(args: Array<String>) {
-    Database.connect("jdbc:sqlite:planning.db", driver = "org.sqlite.JDBC")
-    TransactionManager.manager.defaultIsolationLevel = TRANSACTION_SERIALIZABLE
-
-    transaction {
-        SchemaUtils.create(Cards)
-    }
-
+    val dataBackend = SQLiteBackend()
     val gson = Gson()
 
     val server = embeddedServer(Netty, 9080) {
@@ -48,6 +32,7 @@ fun main(args: Array<String>) {
                 files("src/jsMain/web")
             }
             accept(ContentType.Text.Html) {
+                // HTML page
                 get("/") {
                     call.respondHtml {
                         lang = "en"
@@ -127,32 +112,28 @@ fun main(args: Array<String>) {
                     }
                 }
             }
+
+            // REST API
             accept(ContentType.Application.Json) {
                 get("/cards/") {
-                    val cardIds = LinkedList<Int>()
-                    transaction {
-                        Cards.selectAll().forEach { cardIds.push(it[Cards.id].value) }
-                    }
                     call.respondText(
-                        gson.toJson(cardIds.map { "/cards/$it" }),
+                        gson.toJson(dataBackend.allCards().map { "/cards/$it" }),
                         contentType = ContentType.Application.Json
                     )
                 }
                 get("/cards/{id}") {
                     val cardId = call.parameters["id"]!!.toInt()
-                    val result = transaction {
-                        Cards.select { Cards.id.eq(cardId) }.firstOrNull()
-                    }
-                    if (result == null) {
-                        call.respond(HttpStatusCode.NotFound)
+                    val card = try {
+                        dataBackend.getCard(cardId)
+                    } catch (e: CardNotFoundException) {
+                        if (e.message?.isNotEmpty() == true) {
+                            call.respond(HttpStatusCode.NotFound, e.message)
+                        } else {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
                         return@get
                     }
-                    val card = CardState(
-                        "/cards/$cardId",
-                        result[Cards.id].value,
-                        result[Cards.title],
-                        result[Cards.body]
-                    )
+                    card.uri = "/cards/${card.id}"
                     call.respondText(
                         gson.toJson(card),
                         contentType = ContentType.Application.Json
@@ -167,30 +148,15 @@ fun main(args: Array<String>) {
                     }
 
                     try {
-                        transaction {
-                            Cards.update({ Cards.id.eq(cardId) }) {
-                                if (obj.title != null) {
-                                    it[title] = obj.title
-                                }
-                                if (obj.body != null) {
-                                    it[body] = obj.body
-                                }
-                            }
-                        }
+                        dataBackend.updateCard(cardId, obj)
                         call.respond(HttpStatusCode.Accepted)
                     } catch (err: RuntimeException) {
                         call.respond(HttpStatusCode.BadRequest)
                     }
                 }
                 post("/cards/") {
-                    val result = transaction {
-                        Cards.insertAndGetId {
-                            it[title] = ""
-                            it[body] = ""
-                        }
-                    }
                     val responseObj = object {
-                        val id: Int = result.value
+                        val id: Int = dataBackend.insertCard()
                     }
                     call.response.headers.append("Location", "/cards/${responseObj.id}")
                     call.respondText(
