@@ -285,6 +285,10 @@ class CardApp(props: dynamic) : React.Component(props) {
             getRequestOptions()
         ).then {
             if (!it.ok) {
+                if (it.status == 404.toShort()) {
+                    this.onCardNotFound(cardId)
+                    throw CardNotFoundError()
+                }
                 val responseJson = responseToJson(it)
                 error("fetch GET $endpointUri was not successful: $responseJson")
             }
@@ -295,7 +299,11 @@ class CardApp(props: dynamic) : React.Component(props) {
             return@then CardState(obj.uri as String, obj.id as Int, obj.title as String, obj.body as String)
         }.then(this::onCardDataFetched).catch {
             this.cardsBeingFetched.remove(cardId)
-            console.error(it)
+            if (it is CardNotFoundError) {
+                onCardNotFound(cardId)
+            } else {
+                console.error("Unhandled error occurred when fetching card $cardId", it)
+            }
         }
     }
 
@@ -307,6 +315,19 @@ class CardApp(props: dynamic) : React.Component(props) {
                 return@setState object {}
             }
             previousCards[card.id!!] = card
+            return@setState object {
+                val cards = previousCards
+            }
+        }
+    }
+
+    private fun onCardNotFound(cardId: Int) {
+        this.setState { prevState: dynamic ->
+            val previousCards = prevState.cards as HashMap<Int, CardState?>
+            if (!previousCards.contains(cardId)) {
+                return@setState prevState
+            }
+            previousCards.remove(cardId)
             return@setState object {
                 val cards = previousCards
             }
@@ -450,6 +471,8 @@ class CardApp(props: dynamic) : React.Component(props) {
         }
     }
 }
+
+class CardNotFoundError : RuntimeException()
 
 fun main() {
     ReactDOM.render(

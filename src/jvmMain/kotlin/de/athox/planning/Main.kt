@@ -21,7 +21,7 @@ import io.ktor.server.netty.Netty
 import kotlinx.html.*
 
 fun main(args: Array<String>) {
-    val dataBackend = SQLiteBackend()
+    val dataBackend: Any = GitHubBackend("RS485", "LogisticsPipes")
     val gson = Gson()
 
     val server = embeddedServer(Netty, 9080) {
@@ -119,54 +119,70 @@ fun main(args: Array<String>) {
             // REST API
             accept(ContentType.Application.Json) {
                 get("/cards/") {
-                    call.respondText(
-                        gson.toJson(dataBackend.allCards().map { "/cards/$it" }.toTypedArray()),
-                        contentType = ContentType.Application.Json
-                    )
+                    (dataBackend as? CardReadProvider)?.run {
+                        call.respondText(
+                            gson.toJson(allCards().map { "/cards/$it" }.toTypedArray()),
+                            contentType = ContentType.Application.Json
+                        )
+                    } ?: run {
+                        call.respond(HttpStatusCode.NotImplemented)
+                    }
                 }
                 get("/cards/{id}") {
-                    val cardId = call.parameters["id"]!!.toInt()
-                    val card = try {
-                        dataBackend.getCard(cardId)
-                    } catch (e: CardNotFoundException) {
-                        if (e.message?.isNotEmpty() == true) {
-                            call.respond(HttpStatusCode.NotFound, e.message)
-                        } else {
-                            call.respond(HttpStatusCode.NotFound)
+                    (dataBackend as? CardReadProvider)?.run {
+                        val cardId = call.parameters["id"]!!.toInt()
+                        val card = try {
+                            dataBackend.getCard(cardId)
+                        } catch (e: CardNotFoundException) {
+                            if (e.message?.isNotEmpty() == true) {
+                                call.respond(HttpStatusCode.NotFound, e.message)
+                            } else {
+                                call.respond(HttpStatusCode.NotFound)
+                            }
+                            return@get
                         }
-                        return@get
+                        card.uri = "/cards/${card.id}"
+                        call.respondText(
+                            gson.toJson(card),
+                            contentType = ContentType.Application.Json
+                        )
+                    } ?: run {
+                        call.respond(HttpStatusCode.NotImplemented)
                     }
-                    card.uri = "/cards/${card.id}"
-                    call.respondText(
-                        gson.toJson(card),
-                        contentType = ContentType.Application.Json
-                    )
                 }
                 patch("/cards/{id}") {
-                    val cardId = call.parameters["id"]!!.toInt()
-                    val obj = gson.fromJson<CardState>(call.receiveStream().reader(), CardState::class.java)
-                    if (obj.title == null && obj.body == null) {
-                        call.respond(HttpStatusCode.BadRequest, "no update item received")
-                        return@patch
-                    }
+                    (dataBackend as? CardWriteProvider)?.run {
+                        val cardId = call.parameters["id"]!!.toInt()
+                        val obj = gson.fromJson<CardState>(call.receiveStream().reader(), CardState::class.java)
+                        if (obj.title == null && obj.body == null) {
+                            call.respond(HttpStatusCode.BadRequest, "no update item received")
+                            return@patch
+                        }
 
-                    try {
-                        dataBackend.updateCard(cardId, obj)
-                        call.respond(HttpStatusCode.Accepted)
-                    } catch (err: RuntimeException) {
-                        call.respond(HttpStatusCode.BadRequest)
+                        try {
+                            dataBackend.updateCard(cardId, obj)
+                            call.respond(HttpStatusCode.Accepted)
+                        } catch (err: RuntimeException) {
+                            call.respond(HttpStatusCode.BadRequest)
+                        }
+                    } ?: run {
+                        call.respond(HttpStatusCode.NotImplemented)
                     }
                 }
                 post("/cards/") {
-                    val responseObj = object {
-                        val id: Int = dataBackend.insertCard()
+                    (dataBackend as? CardWriteProvider)?.run {
+                        val responseObj = object {
+                            val id: Int = dataBackend.insertCard()
+                        }
+                        call.response.headers.append("Location", "/cards/${responseObj.id}")
+                        call.respondText(
+                            gson.toJson(responseObj),
+                            contentType = ContentType.Application.Json,
+                            status = HttpStatusCode.Created
+                        )
+                    } ?: run {
+                        call.respond(HttpStatusCode.NotImplemented)
                     }
-                    call.response.headers.append("Location", "/cards/${responseObj.id}")
-                    call.respondText(
-                        gson.toJson(responseObj),
-                        contentType = ContentType.Application.Json,
-                        status = HttpStatusCode.Created
-                    )
                 }
             }
         }

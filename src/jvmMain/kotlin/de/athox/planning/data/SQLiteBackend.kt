@@ -54,7 +54,7 @@ class SQLiteBackend : CardReadProvider, CardWriteProvider {
     override fun getCard(cardId: Int): CardState {
         val result = transaction(db) {
             Cards.select { Cards.id.eq(cardId) }.firstOrNull()
-        } ?: throw CardNotFoundException("Card with id $cardId not found")
+        } ?: throw CardNotFoundException(cardId)
 
         return CardState(
             null,
@@ -64,7 +64,7 @@ class SQLiteBackend : CardReadProvider, CardWriteProvider {
         )
     }
 
-    override fun allCards(): List<Int> {
+    override suspend fun allCards(): List<Int> {
         return transaction(db) {
             Cards.selectAll().map { it[Cards.id].value }
         }

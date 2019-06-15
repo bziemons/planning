@@ -12,9 +12,6 @@ repositories {
     jcenter()
     mavenCentral()
     maven(url = "http://dl.bintray.com/kotlin/ktor")
-    maven(url = "https://jitpack.io") {
-        name = "jitpack"
-    }
 }
 
 val ktorVersion = "1.0.1"
@@ -22,6 +19,7 @@ val logbackVersion = "1.2.3"
 val gsonVersion = "2.8.5"
 val exposedVersion = "0.13.7"
 val sqliteJdbcVersion = "3.27.2.1"
+val fuelVersion = "2.1.0"
 
 kotlin {
     jvm()
@@ -49,6 +47,9 @@ kotlin {
                 implementation("com.google.code.gson:gson:$gsonVersion")
                 implementation("org.jetbrains.exposed:exposed:$exposedVersion")
                 implementation("org.xerial:sqlite-jdbc:$sqliteJdbcVersion")
+                implementation("com.github.kittinunf.fuel:fuel:$fuelVersion")
+                implementation("com.github.kittinunf.fuel:fuel-gson:$fuelVersion")
+                implementation("com.github.kittinunf.fuel:fuel-coroutines:$fuelVersion")
             }
         }
         jvm().compilations["test"].defaultSourceSet {
