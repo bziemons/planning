@@ -42,7 +42,7 @@
 # auto-import.
 # .idea/modules.xml
 # .idea/*.iml
-# .idea/modules
+.idea/modules
 # *.iml
 # *.ipr
 
