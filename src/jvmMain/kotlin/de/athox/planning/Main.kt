@@ -98,6 +98,11 @@ fun main(args: Array<String>) {
                                 attributes["crossorigin"] = "anonymous"
                             }
                             script {
+                                src = "https://cdnjs.cloudflare.com/ajax/libs/commonmark/0.29.0/commonmark.min.js"
+                                attributes["integrity"] = "sha256-ISvYtCg0IbaL4016ONlJrQQb8hfp9P8PaxQ2G3l1C0c="
+                                attributes["crossorigin"] = "anonymous"
+                            }
+                            script {
                                 src = "https://unpkg.com/react@16/umd/react.development.js"
                                 attributes["crossorigin"] = "anonymous"
                             }

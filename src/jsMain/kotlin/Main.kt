@@ -14,6 +14,7 @@ class Card(props: dynamic) : React.Component(props) {
     private val onMount = this.props.onMount as (cardId: Int) -> Unit
     private val onCardChanged =
         this.props.onCardChanged as (cardId: Int, cardState: CardState) -> Unit
+    private val renderInput = this.props.renderInput as (input: String) -> String
 
     private var changeCooldown = false
     private var changeDirty = false
@@ -57,13 +58,6 @@ class Card(props: dynamic) : React.Component(props) {
         val titleAttributes: dynamic = object {
             val key = "$uid#title"
             val className = "card-title"
-            val style = object {
-                val flexGrow = "1"
-                val minHeight = "1.5rem"
-                val marginBottom = "0"
-                val overflow = "hidden"
-                val textOverflow = "ellipsis"
-            }
         }
 
         var titleContent = title
@@ -91,10 +85,6 @@ class Card(props: dynamic) : React.Component(props) {
             object {
                 val key = "$uid#header"
                 val className = "card-header"
-                val style = object {
-                    val display = "flex"
-                    val flexDirection = "row"
-                }
             },
             arrayOf(
                 React.createElement(
@@ -125,18 +115,34 @@ class Card(props: dynamic) : React.Component(props) {
             )
         )
 
-        if (body != null && (body as? String)?.isEmpty() != true) {
+
+        val appendBody = { attributes: dynamic, children: dynamic ->
             cardContent = arrayOf(
                 cardContent,
                 React.createElement(
                     "div",
-                    object {
-                        val key = "$uid#body"
-                        val className = "card-body"
-                    },
-                    body
-                )
+                    attributes
+                ),
+                children
             )
+        }
+        val bodyAttributes: dynamic = object {
+            val key = "$uid#body"
+            val className = "card-body"
+        }
+        if (body != null) {
+            if (body is String) {
+                val bodyString: String = body.unsafeCast<String>()
+                if (bodyString.isNotEmpty()) {
+                    bodyAttributes["dangerouslySetInnerHTML"] = object {
+                        @Suppress("ObjectPropertyName")
+                        val __html = this@Card.renderInput(bodyString)
+                    }
+                    appendBody(bodyAttributes, undefined)
+                }
+            } else {
+                appendBody(bodyAttributes, body)
+            }
         }
 
         return React.createElement(
@@ -223,6 +229,9 @@ class CardApp(props: dynamic) : React.Component(props) {
     private val endpointUri = "/cards/"
     private val cardsBeingFetched = HashSet<Int>()
     private val cardsOffView = ViewElements(this::onCardVisible)
+
+    val markdownParser = commonmark.Parser()
+    val htmlRenderer = commonmark.HtmlRenderer()
 
     init {
         this.state = object {
@@ -402,9 +411,12 @@ class CardApp(props: dynamic) : React.Component(props) {
                             val key = it.key.toString()
                             val cardId = it.key
                             val uid = this@CardApp.getCardUid(it.key) // TODO: card-container uid
-                            val uri = "$endpointUri${it.key}"
+                            val uri = "${this@CardApp.endpointUri}${it.key}"
                             val onMount = this@CardApp::onCardMount
                             val onCardChanged = this@CardApp::onCardDataChanged
+                            val renderInput = { input: String ->
+                                this@CardApp.htmlRenderer.render(markdownParser.parse(input))
+                            }
                         }
                         cardProps["isInitialized"] = if (it.value == null) {
                             false
