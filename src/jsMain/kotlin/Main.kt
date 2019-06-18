@@ -226,7 +226,7 @@ class RefreshButton(props: dynamic) : React.Component(props) {
 }
 
 class CardApp(props: dynamic) : React.Component(props) {
-    private val endpointUri = "/cards/"
+    private val endpointUri = "/rest/v1/cards/"
     private val cardsBeingFetched = HashSet<Int>()
     private val cardsOffView = ViewElements(this::onCardVisible)
 

@@ -1,3 +1,3 @@
 #!/bin/sh
 
-docker build -t thezorro266/planning:latest .
+exec docker build -t thezorro266/planning:latest .

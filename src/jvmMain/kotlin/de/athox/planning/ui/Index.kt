@@ -1,6 +1,12 @@
 package de.athox.planning.ui
 
+import io.ktor.application.call
 import io.ktor.html.Template
+import io.ktor.html.respondHtmlTemplate
+import io.ktor.http.ContentType
+import io.ktor.routing.Routing
+import io.ktor.routing.accept
+import io.ktor.routing.get
 import kotlinx.html.*
 
 class Index : Template<HTML> {
@@ -82,6 +88,14 @@ class Index : Template<HTML> {
             }
             script {
                 src = "/planning.js"
+            }
+        }
+    }
+
+    operator fun invoke(routing: Routing) {
+        routing.accept(ContentType.Text.Html) {
+            get("/") {
+                call.respondHtmlTemplate(this@Index) {}
             }
         }
     }
